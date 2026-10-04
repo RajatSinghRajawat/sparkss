@@ -5,7 +5,7 @@
 #   EMAIL=you@example.com ./init-letsencrypt.sh
 set -e
 
-DOMAINS=(api.sparks-learning.com admin.sparks-learning.com)
+DOMAINS=(api.sparks-learning.com admin.sparks-learning.com landing.sparks-learning.com)
 EMAIL="${EMAIL:-santoshkumar.s@cetl.in}"
 STAGING="${STAGING:-0}"
 DATA=./certbot

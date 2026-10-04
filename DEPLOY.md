@@ -4,9 +4,10 @@
 |---|---|
 | https://api.sparks-learning.com | `backend-spark` (Express + Socket.IO), MongoDB |
 | https://admin.sparks-learning.com | `sparksAdmin` (Vite React build) |
+| https://landing.sparks-learning.com | `Landing page` (Vite React build) |
 
 ## 1. DNS
-Add **A records** for `api.sparks-learning.com` and `admin.sparks-learning.com` → server public IP.
+Add **A records** for `api.sparks-learning.com`, `admin.sparks-learning.com`, and `landing.sparks-learning.com` → server public IP.
 Open ports **80** and **443** (security group / `ufw allow 80,443/tcp`).
 
 ## 2. Server setup (Ubuntu)
@@ -18,7 +19,7 @@ sudo usermod -aG docker $USER   # re-login after this
 ## 3. Upload code
 Copy these to the server (e.g. `/opt/sparks`):
 ```
-compose.yml  init-letsencrypt.sh  nginx/  backend-spark/  sparksAdmin/
+compose.yml  init-letsencrypt.sh  nginx/  backend-spark/  sparksAdmin/  "Landing page/"
 ```
 (`node_modules` and `dist` are not needed.)
 
@@ -39,6 +40,7 @@ Certificates renew automatically (certbot container every 12h, nginx reload ever
 ```bash
 docker compose up -d --build api      # redeploy backend
 docker compose up -d --build admin    # redeploy admin panel
+docker compose up -d --build landing  # redeploy landing page
 docker compose logs -f api            # logs
 docker compose ps
 ```

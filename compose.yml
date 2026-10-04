@@ -46,6 +46,15 @@ services:
     expose:
       - "80"
 
+  landing:
+    build:
+      context: "./Landing page"
+    image: sparks-landing:latest
+    container_name: sparks-landing
+    restart: unless-stopped
+    expose:
+      - "80"
+
   nginx:
     image: nginx:1.27-alpine
     container_name: sparks-nginx
@@ -60,6 +69,7 @@ services:
     depends_on:
       - api
       - admin
+      - landing
     # Reload every 6h so renewed certificates are picked up
     command: /bin/sh -c 'while :; do sleep 6h & wait $${!}; nginx -s reload; done & nginx -g "daemon off;"'
 
