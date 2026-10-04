@@ -7,14 +7,14 @@ import Constants from "expo-constants";
 /** Live backend. Keep it without a trailing slash — endpoints already start with "/". */
 // Never "localhost": on a phone that's the phone itself, so every request
 // fails with FETCH_ERROR. Local testing goes through USE_LOCAL_API below.
-const PROD_BASE_URL = "http://93.127.213.176:5000";
+const PROD_BASE_URL = "https://api.sparks-learning.com";
 const LOCAL_API_PORT = 5000;
 
 /**
  * Set to true to hit the backend running on this machine from a dev build
  * instead of the live server. Production builds always use PROD_BASE_URL.
  */
-const USE_LOCAL_API = true;
+const USE_LOCAL_API = false;
 
 /**
  * The LAN host Metro is served from, e.g. "172.20.10.2" out of "172.20.10.2:8081".
