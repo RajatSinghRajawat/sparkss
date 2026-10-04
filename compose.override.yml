@@ -1,0 +1,16 @@
+# VPS setup: ports 80/443 belong to the existing Caddy (ets-caddy, network etsp_default).
+# Caddy handles SSL and proxies api./admin. to these containers; our nginx/certbot stay off.
+# Caddy config: /root/ETSP/Caddyfile
+services:
+  api:
+    networks: [default, edge]
+  admin:
+    networks: [default, edge]
+  nginx:
+    profiles: ["standalone"]
+  certbot:
+    profiles: ["standalone"]
+networks:
+  edge:
+    external: true
+    name: etsp_default
