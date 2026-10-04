@@ -1,9 +1,9 @@
 import { useState, useEffect } from 'react';
-import { BookOpen, Plus, Play, Tag, Search } from 'lucide-react';
+import { BookOpen, Plus, Play, Tag, Search, Video, Image, UploadCloud, AlertCircle, Clock, User, Layers } from 'lucide-react';
 import Modal from '../components/common/Modal';
 import Badge from '../components/common/Badge';
 import MediaThumb from '../components/common/MediaThumb';
-import { readVideoDuration } from '../utils/media';
+import { readVideoDuration, formatDuration } from '../utils/media';
 import { endpoints, safeList } from '../services/api';
 
 const EMPTY_FORM = { title: '', description: '', playlist: '', createdBy: '', duration: 0 };
@@ -15,15 +15,14 @@ const CoursesPage = () => {
   const [search, setSearch] = useState('');
   const [showAddModal, setShowAddModal] = useState(false);
   const [activeVideoUrl, setActiveVideoUrl] = useState(null);
+  const [activeCourse, setActiveCourse] = useState(null);
+  const [formError, setFormError] = useState('');
 
   // New Course Form state
   const [formData, setFormData] = useState(EMPTY_FORM);
-  // Real files uploaded through the backend (was a raw S3 key defaulting to a
-  // sample that doesn't exist, plus a thumbnail field that was never sent).
   const [videoFile, setVideoFile] = useState(null);
   const [thumbFile, setThumbFile] = useState(null);
   const [progress, setProgress] = useState('');
-  // Playlists that may hold the selected teacher's course (theirs + admin's).
   const [teacherPlaylists, setTeacherPlaylists] = useState([]);
   const [submitting, setSubmitting] = useState(false);
 
@@ -51,11 +50,10 @@ const CoursesPage = () => {
     return () => clearTimeout(delay);
   }, [search]);
 
-  // The backend only accepts a playlist owned by the chosen teacher (or the
-  // admin); listing every playlist let you pick one that always failed.
   const handleTeacherChange = async (teacherId) => {
     setFormData((f) => ({ ...f, createdBy: teacherId, playlist: '' }));
     setTeacherPlaylists([]);
+    setFormError('');
     if (!teacherId) return;
     try {
       const res = await endpoints.playlists.getAll({ teacherId, limit: 100 });
@@ -67,6 +65,7 @@ const CoursesPage = () => {
 
   const handleVideoPick = async (file) => {
     setVideoFile(file || null);
+    setFormError('');
     if (file) {
       const secs = await readVideoDuration(file);
       if (secs > 0) setFormData((f) => ({ ...f, duration: secs }));
@@ -75,21 +74,28 @@ const CoursesPage = () => {
 
   const handleCreateCourse = async (e) => {
     e.preventDefault();
+    setFormError('');
+
+    if (!formData.title.trim()) {
+      setFormError('Please enter a course title.');
+      return;
+    }
     if (!formData.createdBy) {
-      alert('Please select a teacher.');
+      setFormError('Please select an instructing faculty member.');
       return;
     }
     if (!formData.playlist) {
-      alert('Please select a playlist of that teacher (create one in Playlists first).');
+      setFormError('Please select an assigned playlist for this instructor.');
       return;
     }
     if (!videoFile) {
-      alert('Please choose a video file.');
+      setFormError('Please choose a video file for this course.');
       return;
     }
+
     setSubmitting(true);
     try {
-      setProgress('Uploading video...');
+      setProgress('Uploading video lesson to storage...');
       const fd = new FormData();
       fd.append('video', videoFile);
       if (thumbFile) fd.append('thumbnail', thumbFile);
@@ -97,7 +103,7 @@ const CoursesPage = () => {
       const { videoKey, thumbnailKey } = up.data?.data ?? {};
       if (!videoKey) throw new Error('Upload failed: no video key returned.');
 
-      setProgress('Saving course...');
+      setProgress('Saving and publishing course...');
       const payload = {
         title: formData.title.trim(),
         description: formData.description?.trim(),
@@ -114,24 +120,25 @@ const CoursesPage = () => {
         setVideoFile(null);
         setThumbFile(null);
         setTeacherPlaylists([]);
+        setFormError('');
         fetchCourses();
       }
     } catch (err) {
-      alert(err.response?.data?.message || err.message || 'Failed to create course');
+      setFormError(err.response?.data?.message || err.message || 'Failed to create course');
     } finally {
       setSubmitting(false);
       setProgress('');
     }
   };
 
-  const handlePreviewVideo = async (courseId, directUrl) => {
-    if (directUrl) {
-      setActiveVideoUrl(directUrl);
+  const handlePreviewVideo = async (course) => {
+    setActiveCourse(course);
+    if (course.videoUrl) {
+      setActiveVideoUrl(course.videoUrl);
       return;
     }
     try {
-      const res = await endpoints.courses.getVideoUrl(courseId);
-      // Backend field is `videoUrl`; reading only `url` made every preview fail.
+      const res = await endpoints.courses.getVideoUrl(course._id);
       const url = res.data?.data?.videoUrl || res.data?.data?.url;
       if (url) {
         setActiveVideoUrl(url);
@@ -261,7 +268,7 @@ const CoursesPage = () => {
                   }}
                 />
                 <button
-                  onClick={() => handlePreviewVideo(course._id, course.videoUrl)}
+                  onClick={() => handlePreviewVideo(course)}
                   className="btn"
                   style={{
                     width: '52px',
@@ -334,7 +341,7 @@ const CoursesPage = () => {
                   <button
                     className="btn btn-secondary"
                     style={{ padding: '6px 12px', fontSize: '0.78rem' }}
-                    onClick={() => handlePreviewVideo(course._id, course.videoUrl)}
+                    onClick={() => handlePreviewVideo(course)}
                   >
                     Preview Media
                   </button>
@@ -346,8 +353,27 @@ const CoursesPage = () => {
       )}
 
       {/* Add Course Modal */}
-      <Modal isOpen={showAddModal} onClose={() => setShowAddModal(false)} title="Publish New Course">
+      <Modal isOpen={showAddModal} onClose={() => { setShowAddModal(false); setFormError(''); }} title="Publish New Course" maxWidth="680px">
         <form onSubmit={handleCreateCourse} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+          {formError && (
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                padding: '10px 14px',
+                borderRadius: '8px',
+                backgroundColor: 'rgba(244, 63, 94, 0.12)',
+                border: '1px solid rgba(244, 63, 94, 0.3)',
+                color: '#fb7185',
+                fontSize: '0.84rem',
+              }}
+            >
+              <AlertCircle size={16} />
+              <span>{formError}</span>
+            </div>
+          )}
+
           <div>
             <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-muted)', marginBottom: '6px' }}>
               Course Title *
@@ -357,7 +383,7 @@ const CoursesPage = () => {
               className="input-control"
               placeholder="e.g. Advanced Mathematics for Competitive Exams"
               value={formData.title}
-              onChange={(e) => setFormData({ ...formData, title: e.target.value })}
+              onChange={(e) => { setFormData({ ...formData, title: e.target.value }); setFormError(''); }}
               required
             />
           </div>
@@ -375,33 +401,8 @@ const CoursesPage = () => {
             />
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '12px' }}>
-            <div>
-              <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-muted)', marginBottom: '6px' }}>
-                Assigned Playlist *
-              </label>
-              <select
-                className="input-control"
-                value={formData.playlist}
-                onChange={(e) => setFormData({ ...formData, playlist: e.target.value })}
-                disabled={!formData.createdBy}
-                required
-              >
-                <option value="">
-                  {!formData.createdBy
-                    ? 'Select a teacher first'
-                    : teacherPlaylists.length === 0
-                      ? 'No playlists for this teacher'
-                      : 'Select Playlist'}
-                </option>
-                {teacherPlaylists.map((p) => (
-                  <option key={p._id} value={p._id}>
-                    {p.name || p.title}
-                  </option>
-                ))}
-              </select>
-            </div>
-
+          {/* Teacher First, then Playlist */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '14px' }}>
             <div>
               <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-muted)', marginBottom: '6px' }}>
                 Instructing Faculty *
@@ -420,12 +421,58 @@ const CoursesPage = () => {
                 ))}
               </select>
             </div>
-          </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '12px' }}>
             <div>
               <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-muted)', marginBottom: '6px' }}>
-                Duration (Seconds, auto from video)
+                Assigned Playlist *
+              </label>
+              <select
+                className="input-control"
+                value={formData.playlist}
+                onChange={(e) => { setFormData({ ...formData, playlist: e.target.value }); setFormError(''); }}
+                disabled={!formData.createdBy}
+                required
+              >
+                <option value="">
+                  {!formData.createdBy
+                    ? '← Select faculty member first'
+                    : teacherPlaylists.length === 0
+                      ? 'No playlists found for this teacher'
+                      : 'Select Playlist'}
+                </option>
+                {teacherPlaylists.map((p) => (
+                  <option key={p._id} value={p._id}>
+                    {p.name || p.title}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          {/* Video & Duration Section */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '14px' }}>
+            <div>
+              <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-muted)', marginBottom: '6px' }}>
+                Video File * (MP4 / WebM / QuickTime)
+              </label>
+              <input
+                type="file"
+                className="input-control"
+                accept="video/mp4,video/quicktime,video/webm,video/3gpp"
+                onChange={(e) => handleVideoPick(e.target.files?.[0])}
+                required
+                style={{ padding: '8px 12px' }}
+              />
+              {videoFile && (
+                <span style={{ fontSize: '0.74rem', color: 'var(--primary)', marginTop: '4px', display: 'block' }}>
+                  Selected: {videoFile.name} ({(videoFile.size / (1024 * 1024)).toFixed(1)} MB)
+                </span>
+              )}
+            </div>
+
+            <div>
+              <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-muted)', marginBottom: '6px' }}>
+                Duration (Seconds, auto-detected from video)
               </label>
               <input
                 type="number"
@@ -434,36 +481,39 @@ const CoursesPage = () => {
                 value={formData.duration}
                 onChange={(e) => setFormData({ ...formData, duration: Number(e.target.value) })}
               />
-            </div>
-
-            <div>
-              <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-muted)', marginBottom: '6px' }}>
-                Video File *
-              </label>
-              <input
-                type="file"
-                className="input-control"
-                accept="video/mp4,video/quicktime,video/webm,video/3gpp"
-                onChange={(e) => handleVideoPick(e.target.files?.[0])}
-                required
-              />
+              {formData.duration > 0 && (
+                <span style={{ fontSize: '0.74rem', color: 'var(--text-dim)', marginTop: '4px', display: 'block' }}>
+                  Formatted length: {formatDuration(formData.duration)}
+                </span>
+              )}
             </div>
           </div>
 
+          {/* Thumbnail */}
           <div>
             <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-muted)', marginBottom: '6px' }}>
-              Thumbnail Image (optional — the video frame is shown if empty)
+              Thumbnail Image (Optional — video frame used if blank)
             </label>
             <input
               type="file"
               className="input-control"
               accept="image/jpeg,image/png,image/webp"
               onChange={(e) => setThumbFile(e.target.files?.[0] || null)}
+              style={{ padding: '8px 12px' }}
             />
+            {thumbFile && (
+              <span style={{ fontSize: '0.74rem', color: 'var(--primary)', marginTop: '4px', display: 'block' }}>
+                Selected thumbnail: {thumbFile.name}
+              </span>
+            )}
           </div>
 
-          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '14px' }}>
-            <button type="button" className="btn btn-secondary" onClick={() => setShowAddModal(false)}>
+          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '14px', paddingTop: '12px', borderTop: '1px solid rgba(255, 255, 255, 0.08)' }}>
+            <button
+              type="button"
+              className="btn btn-secondary"
+              onClick={() => { setShowAddModal(false); setFormError(''); }}
+            >
               Cancel
             </button>
             <button type="submit" className="btn btn-primary" disabled={submitting}>
@@ -474,27 +524,58 @@ const CoursesPage = () => {
       </Modal>
 
       {/* Video Player Modal */}
-      <Modal isOpen={!!activeVideoUrl} onClose={() => setActiveVideoUrl(null)} title="Course Media Player" maxWidth="750px">
+      <Modal
+        isOpen={!!activeVideoUrl}
+        onClose={() => { setActiveVideoUrl(null); setActiveCourse(null); }}
+        title={activeCourse?.title ? `Lesson: ${activeCourse.title}` : 'Course Media Player'}
+        maxWidth="820px"
+      >
         {activeVideoUrl && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
             <div
               style={{
                 width: '100%',
                 borderRadius: 'var(--radius-md)',
                 overflow: 'hidden',
                 backgroundColor: '#000000',
+                boxShadow: '0 8px 32px rgba(0, 0, 0, 0.6)',
               }}
             >
               <video
                 src={activeVideoUrl}
                 controls
                 autoPlay
-                style={{ width: '100%', maxHeight: '420px', display: 'block' }}
+                style={{ width: '100%', maxHeight: '460px', display: 'block' }}
               />
             </div>
-            <span style={{ fontSize: '0.78rem', color: 'var(--text-dim)', wordBreak: 'break-all' }}>
-              Streaming Source: {activeVideoUrl}
-            </span>
+
+            {/* Course Meta Info */}
+            {activeCourse && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '10px' }}>
+                  {activeCourse.playlistTitle && (
+                    <Badge variant="indigo">
+                      Playlist: {activeCourse.playlistTitle}
+                    </Badge>
+                  )}
+                  {activeCourse.teacherName && (
+                    <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                      Faculty: <strong style={{ color: 'var(--text-main)' }}>{activeCourse.teacherName}</strong>
+                    </span>
+                  )}
+                  {activeCourse.duration > 0 && (
+                    <span style={{ fontSize: '0.8rem', color: 'var(--text-dim)' }}>
+                      Duration: {formatDuration(activeCourse.duration)}
+                    </span>
+                  )}
+                </div>
+                {activeCourse.description && (
+                  <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', lineHeight: 1.5, marginTop: '4px' }}>
+                    {activeCourse.description}
+                  </p>
+                )}
+              </div>
+            )}
           </div>
         )}
       </Modal>
