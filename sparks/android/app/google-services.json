@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "474501940126",
+    "project_id": "test-ff5d8",
+    "storage_bucket": "test-ff5d8.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:474501940126:android:dae036969efef28b4ecc8f",
+        "android_client_info": {
+          "package_name": "com.sksbagda.sparks"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBInSmozNHn1WCcBdhYyFcTtzHIvczDC7o"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
