@@ -1,0 +1,77 @@
+name: sparks
+
+services:
+  mongo:
+    image: mongo:7
+    container_name: sparks-mongo
+    restart: unless-stopped
+    volumes:
+      - mongo_data:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping').ok"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+    # Not published to the host; only reachable inside the docker network.
+
+  api:
+    build: ./backend-spark
+    image: sparks-api:latest
+    container_name: sparks-api
+    restart: unless-stopped
+    env_file: ./backend-spark/.env
+    environment:
+      NODE_ENV: production
+      PORT: 5000
+      MONGO_URI: mongodb://mongo:27017/eduspark
+    volumes:
+      - ./backend-spark/uploads:/app/uploads
+      # Optional Firebase (push notifications): put the key at ./backend-spark/firebase.json,
+      # uncomment the line below and set GOOGLE_APPLICATION_CREDENTIALS=/app/firebase.json in backend-spark/.env
+      # - ./backend-spark/firebase.json:/app/firebase.json:ro
+    depends_on:
+      mongo:
+        condition: service_healthy
+    expose:
+      - "5000"
+
+  admin:
+    build:
+      context: ./sparksAdmin
+      args:
+        VITE_API_BASE_URL: https://api.sparks-learning.com
+    image: sparks-admin:latest
+    container_name: sparks-admin
+    restart: unless-stopped
+    expose:
+      - "80"
+
+  nginx:
+    image: nginx:1.27-alpine
+    container_name: sparks-nginx
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/conf.d:/etc/nginx/conf.d:ro
+      - ./certbot/conf:/etc/letsencrypt:ro
+      - ./certbot/www:/var/www/certbot:ro
+    depends_on:
+      - api
+      - admin
+    # Reload every 6h so renewed certificates are picked up
+    command: /bin/sh -c 'while :; do sleep 6h & wait $${!}; nginx -s reload; done & nginx -g "daemon off;"'
+
+  certbot:
+    image: certbot/certbot:latest
+    container_name: sparks-certbot
+    restart: unless-stopped
+    volumes:
+      - ./certbot/conf:/etc/letsencrypt
+      - ./certbot/www:/var/www/certbot
+    # Try renewal every 12h (only renews when < 30 days left)
+    entrypoint: /bin/sh -c 'trap exit TERM; while :; do certbot renew --webroot -w /var/www/certbot --quiet; sleep 12h & wait $${!}; done'
+
+volumes:
+  mongo_data:
