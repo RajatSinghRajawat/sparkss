@@ -7,6 +7,7 @@ const BANNER_MIN_HEIGHT = 50;
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 
 // Only load on native when not in Expo Go (react-native-google-mobile-ads requires dev build)
+// Only load on native when not in Expo Go (react-native-google-mobile-ads requires dev build)
 let RNBannerAd: React.ComponentType<{
   unitId: string;
   size: string;
